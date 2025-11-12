@@ -3,7 +3,8 @@
 **Autor:** Pedro Waack, 
 **Curso:** Engenharia da Computação — Insper  
 **Linguagem:** Python 3.13.5(base) 
-**Biblioteca Principal:** [Pygame](https://www.pygame.org/)  
+**Biblioteca Principal:** [Pygame](https://www.pygame.org/) 
+**IAg Utilizadas:** Codex, Copilot e Cursor 
 
 ---
 
@@ -18,7 +19,6 @@ O projeto foi desenvolvido como uma base sólida de **arquitetura orientada a ob
 - **Waves progressivas** com aumento de dificuldade  
 - **Bosses** com habilidades únicas  
 - **Power-ups** e **upgrades persistentes**  
-- Docstrings completas e padrão de qualidade PEP-257  
 
 ---
 

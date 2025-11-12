@@ -1,4 +1,5 @@
 """
+- Feito com Copilot
 Efeitos climáticos utilizados nas telas do jogo.
 
 O módulo define:
