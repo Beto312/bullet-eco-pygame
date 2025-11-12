@@ -1,3 +1,7 @@
+"""
+Loop principal do Bullet Echo: estados, eventos, spawns, rendering e interface.
+"""
+
 import pygame
 import random
 import sys
@@ -9,9 +13,13 @@ from powerup import PowerUp
 from bosses import (
     BossCharger, BossSummoner, BossShielded, BossSniper, BossSplitter
 )
+from snow import Snowflake, WindOverlay
 
 class Game:
+    """Gerencia ciclo principal: eventos, lógica de waves, áudio, rendering e UI."""
+
     def __init__(self):
+        """Inicializa pygame, assets, estados e coleções usadas pelo jogo."""
         pygame.init()
         if pygame.mixer.get_init() is None:
             pygame.mixer.init()
@@ -33,14 +41,20 @@ class Game:
         try:
             self.menu_image = pygame.image.load("inicio.png").convert()
             self.menu_image = pygame.transform.smoothscale(self.menu_image, (SCREEN_W, SCREEN_H))
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to load 'inicio.png': {e}")
             self.menu_image = None
-        
         try:
             self.background_image = pygame.image.load("background.png").convert()
             self.background_image = pygame.transform.smoothscale(self.background_image, (SCREEN_W, SCREEN_H))
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Could not load background.png: {e}")
             self.background_image = None
+            self.background_image = None
+
+        # Efeitos climáticos
+        self.snowflakes = [Snowflake() for _ in range(160)]
+        self.wind_overlay = WindOverlay()
 
         # Estado
         self.running = True
@@ -79,6 +93,7 @@ class Game:
         }
 
     def create_map(self):
+        """Cria paredes retangulares que limitam o jogador e inimigos no cenário."""
         walls = []
         walls.append(pygame.Rect(0, 0, SCREEN_W, 20))
         walls.append(pygame.Rect(0, SCREEN_H-20, SCREEN_W, 20))
@@ -86,7 +101,21 @@ class Game:
         walls.append(pygame.Rect(SCREEN_W-20, 0, 20, SCREEN_H))
         return walls
 
+    def update_weather_effects(self, dt: float):
+        """Anima flocos de neve e rajadas de vento com base no delta de tempo."""
+        for snowflake in self.snowflakes:
+            snowflake.update(dt)
+        self.wind_overlay.update(dt)
+
+    def draw_weather_layer(self, with_wind: bool):
+        """Desenha a camada climática (neve e, opcionalmente, a névoa de vento)."""
+        for snowflake in self.snowflakes:
+            snowflake.draw(self.screen)
+        if with_wind:
+            self.wind_overlay.draw(self.screen)
+
     def spawn_enemy(self):
+        """Tenta gerar um inimigo longe do jogador/paredes; retorna True se conseguir."""
         if self.active_boss is not None:
             return False
         for _ in range(20):
@@ -117,6 +146,7 @@ class Game:
         return False
 
     def spawn_power_up(self):
+        """Gera um power-up aleatório em local seguro longe de paredes e entidades."""
         power_type = random.choice(["health", "armor", "regen"])
         for _ in range(50):
             x = random.randint(100, SCREEN_W - 100)
@@ -132,11 +162,13 @@ class Game:
             return
 
     def check_power_up_collision(self):
+        """Verifica se o player coletou algum power-up ativo e aplica efeito."""
         for power_up in self.power_ups[:]:
             if not power_up.collected and self.player.rect.colliderect(power_up.rect):
                 self.apply_power_up(power_up)
 
     def apply_power_up(self, power_up):
+        """Aplica o efeito do power-up coletado e remove da lista ativa."""
         if power_up.power_type == "health":
             self.player.max_hp += 25
             self.player.hp = min(self.player.max_hp, self.player.hp + 25)
@@ -151,6 +183,7 @@ class Game:
             self.power_ups.remove(power_up)
 
     def check_upgrade_click(self, mouse_pos):
+        """Detecta cliques em cartões de upgrade durante a tela de recompensa."""
         if hasattr(self, 'upgrade_rects'):
             for i, rect in enumerate(self.upgrade_rects):
                 if rect.collidepoint(mouse_pos):
@@ -159,6 +192,7 @@ class Game:
         return False
 
     def generate_upgrades(self):
+        """Lista os upgrades disponíveis após cada wave limpa."""
         self.available_upgrades = [
             ("Velocidade", "Aumenta velocidade", GREEN),
             ("Dano", "Aumenta dano", RED),
@@ -166,6 +200,7 @@ class Game:
         ]
 
     def start_wave(self):
+        """Configura contadores da próxima wave e decide se será wave de boss."""
         self.current_wave += 1
         self.active_boss = None
         if self.current_wave in self.boss_waves:
@@ -178,6 +213,7 @@ class Game:
             self.spawn_timer = 0.0
 
     def spawn_boss(self):
+        """Instancia o boss associado à wave atual, se houver."""
         if self.active_boss is not None:
             return
         BossCls = self.boss_waves.get(self.current_wave)
@@ -186,6 +222,7 @@ class Game:
             self.active_boss = BossCls(bx, by)
 
     def update_wave(self, dt: float):
+        """Avança timers de spawn ou bosses e controla tela de upgrades ao limpar waves."""
         if self.current_wave in self.boss_waves:
             if self.active_boss is None and not self.enemies:
                 self.spawn_boss()
@@ -224,6 +261,7 @@ class Game:
                 self.showing_upgrades = False
 
     def select_upgrade(self, index: int):
+        """Aplica o upgrade escolhido pelo jogador e fecha a tela de seleção."""
         if 0 <= index < len(self.available_upgrades):
             name = self.available_upgrades[index][0]
             if name == "Velocidade":
@@ -237,6 +275,7 @@ class Game:
                 self.upgrade_rects.clear()
 
     def handle_events(self):
+        """Processa eventos do pygame (teclado, mouse e fechamento da janela)."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -278,6 +317,7 @@ class Game:
                 self.player.rotate_to_mouse(pygame.mouse.get_pos())
 
     def shoot_bullets(self, current_time: float):
+        """Solicita disparo ao player e, se houver projétil, toca som e adiciona à lista."""
         bullet = self.player.shoot(current_time)
         if bullet:
             self.bullets.append(bullet)
@@ -285,6 +325,7 @@ class Game:
                 self.gunshot_sound.play()
 
     def start_game(self):
+        """Reinicia estado para início de partida a partir do menu."""
         self.in_menu = False
         self.game_over = False
         self.paused = False
@@ -302,6 +343,8 @@ class Game:
         self.generate_upgrades()
 
     def update(self, dt: float):
+        """Executa lógica por frame: movimentações, colisões, spawns, bosses e verificações de game over."""
+        self.update_weather_effects(dt)
         if self.in_menu or self.paused or self.game_over or self.showing_upgrades:
             return
 
@@ -367,28 +410,38 @@ class Game:
         self.update_wave(dt)
 
     def draw_menu(self):
+        """Renderiza tela inicial com imagem ou fallback e aplica camada climática."""
         if self.menu_image:
             self.screen.blit(self.menu_image, (0, 0))
         else:
             self.screen.fill(BLACK)
+        self.draw_weather_layer(with_wind=False)
+        if not self.menu_image:
             title = self.font.render("BULLET ECHO", True, BLUE)
             self.screen.blit(title, title.get_rect(center=(SCREEN_W//2, 200)))
             sub = self.small_font.render("Pressione ESPAÇO para começar", True, WHITE)
             self.screen.blit(sub, sub.get_rect(center=(SCREEN_W//2, 300)))
-
     def draw_upgrades(self):
+        """Mostra a tela de escolha de upgrades com destaque para hover/mouse."""
         self.screen.fill(BLACK)
         t1 = self.font.render("WAVE CLEAR!", True, GREEN)
         self.screen.blit(t1, t1.get_rect(center=(SCREEN_W//2, 100)))
         t2 = self.font.render("Escolha um upgrade:", True, WHITE)
         self.screen.blit(t2, t2.get_rect(center=(SCREEN_W//2, 180)))
 
-        self.upgrade_rects = []
-        y = 250
+        # Só recalcula upgrade_rects se não existir ou se o número de upgrades mudou
+        if not hasattr(self, 'upgrade_rects') or len(self.upgrade_rects) != len(self.available_upgrades):
+            self.upgrade_rects = []
+            y = 250
+            for _ in self.available_upgrades:
+                rect = pygame.Rect(200, y - 20, SCREEN_W - 400, 80)
+                self.upgrade_rects.append(rect)
+                y += 120
+
         mouse_pos = pygame.mouse.get_pos()
+        y = 250
         for i, (name, desc, color) in enumerate(self.available_upgrades):
-            rect = pygame.Rect(200, y - 20, SCREEN_W - 400, 80)
-            self.upgrade_rects.append(rect)
+            rect = self.upgrade_rects[i]
             if rect.collidepoint(mouse_pos):
                 pygame.draw.rect(self.screen, WHITE, rect, 5)
                 pygame.draw.rect(self.screen, color, rect, 3)
@@ -408,8 +461,10 @@ class Game:
 
         info = self.small_font.render("Clique no upgrade desejado ou pressione 1, 2 ou 3", True, YELLOW)
         self.screen.blit(info, info.get_rect(center=(SCREEN_W//2, y + 40)))
+        self.screen.blit(info, info.get_rect(center=(SCREEN_W//2, y + 40)))
 
     def draw_boss_healthbar(self):
+        """Desenha barra de vida do boss ativo na parte superior da tela."""
         if self.active_boss is None or self.active_boss.is_dead():
             return
         pad = 20
@@ -424,6 +479,7 @@ class Game:
         self.screen.blit(name, (x, y - 18))
 
     def draw(self):
+        """Renderiza a cena dependendo do estado atual (menu, upgrades ou gameplay)."""
         if self.in_menu:
             self.draw_menu()
         elif self.showing_upgrades:
@@ -434,7 +490,6 @@ class Game:
                 self.screen.blit(self.background_image, (0, 0))
             else:
                 self.screen.fill(BLACK)
-            
             for wall in self.walls:
                 pygame.draw.rect(self.screen, GRAY, wall)
             for enemy in self.enemies:
@@ -446,11 +501,13 @@ class Game:
             if self.active_boss is not None:
                 self.active_boss.draw(self.screen)
             self.player.draw(self.screen)
+            self.draw_weather_layer(with_wind=True)
             self.draw_ui()
             self.draw_boss_healthbar()
         pygame.display.flip()
 
     def draw_ui(self):
+        """Atualiza HUD com wave, HP, armadura, munição e mensagens contextuais."""
         # Wave - em cima no meio
         wave_text = self.font.render(f"Wave: {self.current_wave}", True, WHITE)
         wave_rect = wave_text.get_rect(center=(SCREEN_W//2, 30))
@@ -500,6 +557,7 @@ class Game:
             self.screen.blit(p, p.get_rect(center=(SCREEN_W//2, SCREEN_H//2)))
 
     def restart_game(self):
+        """Reseta o estado durante tela de game over para recomeçar rapidamente."""
         self.player = Player(SCREEN_W//2, SCREEN_H//2)
         self.bullets.clear()
         self.enemies.clear()
@@ -517,6 +575,7 @@ class Game:
         self.generate_upgrades()
 
     def run(self):
+        """Loop principal: processa eventos, atualiza lógica e desenha até fechar."""
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
             self.handle_events()
@@ -524,4 +583,3 @@ class Game:
             self.draw()
         pygame.quit()
         sys.exit()
-
