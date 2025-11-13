@@ -85,11 +85,11 @@ class Game:
         # Boss system
         self.active_boss = None
         self.boss_waves = {
-            5: BossCharger,
-            10: BossSummoner,
-            15: BossShielded,
-            20: BossSniper,
-            25: BossSplitter,
+            3: BossCharger,
+            6: BossSummoner,
+            9: BossShielded,
+            12: BossSniper,
+            15: BossSplitter,
         }
 
     def create_map(self):

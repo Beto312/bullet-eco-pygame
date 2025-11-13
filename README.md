@@ -1,6 +1,6 @@
 # 🎯 Bullet Echo — Top-Down Shooter em Pygame  
 
-**Autor:** Pedro Waack, 
+**Autor:** Pedro Waack, Roberto Machado, André Bragaglia
 **Curso:** Engenharia da Computação — Insper  
 **Linguagem:** Python 3.13.5(base) 
 **Biblioteca Principal:** [Pygame](https://www.pygame.org/) 
